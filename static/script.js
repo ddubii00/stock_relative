@@ -368,15 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const ma120 = calculateMA(rawOhlcData, 120);
         const ma240 = calculateMA(rawOhlcData, 240);
         
-        // Slice the arrays for standard window display
-        const displayOhlc = rawOhlcData.slice(-daysToDisplay);
-        const displayMa5 = ma5.slice(-daysToDisplay);
-        const displayMa10 = ma10.slice(-daysToDisplay);
-        const displayMa20 = ma20.slice(-daysToDisplay);
-        const displayMa60 = ma60.slice(-daysToDisplay);
-        const displayMa120 = ma120.slice(-daysToDisplay);
-        const displayMa240 = ma240.slice(-daysToDisplay);
-        
         // Helper to format YYYYMMDD -> YYYY.MM.DD
         const formatDate = (str) => {
             if (!str) return str;
@@ -384,18 +375,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return m ? `${m[1]}.${m[2]}.${m[3]}` : str;
         };
 
-        // Format parameters for ApexCharts
-        const candleSeriesData = displayOhlc.map(item => ({
+        // Format parameters for ApexCharts using full datasets to allow panning
+        const candleSeriesData = rawOhlcData.map(item => ({
             x: formatDate(item.date),
             y: [item.open, item.high, item.low, item.close]
         }));
         
-        const ma5SeriesData = displayMa5.map(item => ({ x: formatDate(item.x), y: item.y }));
-        const ma10SeriesData = displayMa10.map(item => ({ x: formatDate(item.x), y: item.y }));
-        const ma20SeriesData = displayMa20.map(item => ({ x: formatDate(item.x), y: item.y }));
-        const ma60SeriesData = displayMa60.map(item => ({ x: formatDate(item.x), y: item.y }));
-        const ma120SeriesData = displayMa120.map(item => ({ x: formatDate(item.x), y: item.y }));
-        const ma240SeriesData = displayMa240.map(item => ({ x: formatDate(item.x), y: item.y }));
+        const ma5SeriesData = ma5.map(item => ({ x: formatDate(item.x), y: item.y }));
+        const ma10SeriesData = ma10.map(item => ({ x: formatDate(item.x), y: item.y }));
+        const ma20SeriesData = ma20.map(item => ({ x: formatDate(item.x), y: item.y }));
+        const ma60SeriesData = ma60.map(item => ({ x: formatDate(item.x), y: item.y }));
+        const ma120SeriesData = ma120.map(item => ({ x: formatDate(item.x), y: item.y }));
+        const ma240SeriesData = ma240.map(item => ({ x: formatDate(item.x), y: item.y }));
         
         // Destroy past chart to prevent double-draw instances
         if (candleChartInstance) {
@@ -447,12 +438,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return points;
         };
         const annotations = [];
-        // 5/20
-        annotations.push(...detectCrosses(displayMa5, displayMa20, '5/20'));
+        // Detect crosses on full datasets so annotations are visible when panning
+        annotations.push(...detectCrosses(ma5, ma20, '5/20'));
         // 5/60
-        annotations.push(...detectCrosses(displayMa5, displayMa60, '5/60'));
+        annotations.push(...detectCrosses(ma5, ma60, '5/60'));
         // 20/60
-        annotations.push(...detectCrosses(displayMa20, displayMa60, '20/60'));
+        annotations.push(...detectCrosses(ma20, ma60, '20/60'));
         // Add to ApexCharts options
         const options = {
             series: [
@@ -496,9 +487,24 @@ document.addEventListener('DOMContentLoaded', () => {
             chart: {
                 height: 420,
                 type: 'line',
+                zoom: {
+                    enabled: true,
+                    type: 'x',
+                    autoScaleYaxis: true,
+                    allowMouseWheelZoom: false
+                },
                 toolbar: {
-                    show: true,
-                    autoSelected: 'zoom'
+                    show: false,
+                    autoSelected: 'pan',
+                    tools: {
+                        download: false,
+                        selection: false,
+                        zoom: false,
+                        zoomin: false,
+                        zoomout: false,
+                        pan: true,
+                        reset: false
+                    }
                 },
                 animations: {
                     enabled: false
@@ -531,6 +537,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ],
             xaxis: {
                 type: 'category',
+                min: Math.max(1, rawOhlcData.length - daysToDisplay + 1),
+                max: rawOhlcData.length,
                 labels: {
                     style: {
                         colors: '#64748b',
@@ -540,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     rotate: -45,
                     rotateAlways: false
                 },
-                tickAmount: Math.min(10, candleSeriesData.length)
+                tickAmount: Math.min(10, daysToDisplay)
             },
             yaxis: {
                 tooltip: {
