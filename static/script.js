@@ -670,6 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             tooltip: {
                 shared: true,
+                intersect: false,
                 custom: function({ seriesIndex, dataPointIndex, w }) {
                     const ohlc = w.config.series[0].data[dataPointIndex];
                     if (!ohlc) return '';
@@ -788,6 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             tooltip: {
                 shared: true,
+                intersect: false,
                 custom: function({ seriesIndex, dataPointIndex, w }) {
                     const item = rawOhlcData[dataPointIndex];
                     if (!item) return '';
@@ -904,6 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             tooltip: {
                 shared: true,
+                intersect: false,
                 custom: function({ seriesIndex, dataPointIndex, w }) {
                     const item = rawOhlcData[dataPointIndex];
                     if (!item) return '';
