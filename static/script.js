@@ -429,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         },
                         label: {
                             text: labelText,
-                            offsetY: isGolden ? 25 : -25,
+                            offsetY: isGolden ? 40 : -40,
                             borderColor: labelColor,
                             borderWidth: 1,
                             borderRadius: 4,
