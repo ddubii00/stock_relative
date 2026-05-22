@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 상대 수익률 계산기 | Antigravity Stock</title>
+    <meta name="description" content="코스피/코스닥 지수 및 동종 업종 지수 대비 주식의 상대 수익률(초과 수익률)을 실시간으로 확인하고 인터랙티브 차트로 비교해 보세요.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- ApexCharts for Daily Candlestick & Moving Averages -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Background Blurs for Premium Glassmorphism Look -->
+    <div class="bg-blur blur-purple"></div>
+    <div class="bg-blur blur-cyan"></div>
+    <div class="bg-blur blur-orange"></div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-container">
+                <span class="logo-icon">▲</span>
+                <h1 class="logo-text">ANTIGRAVITY <span class="logo-accent">STOCK</span></h1>
+            </div>
+            <p class="header-subtitle">지수 및 업종 대비 상대 수익률(초과수익률) 분석 시스템</p>
+        </header>
+
+        <!-- Search Section -->
+        <section class="search-section card">
+            <div class="search-box-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="stock-search" placeholder="종목명 또는 종목코드를 입력하세요 (예: 삼전, 삼성전자, 005930)..." autocomplete="off">
+                <button id="clear-search-btn" class="clear-btn">&times;</button>
+            </div>
+            <!-- Autocomplete Results Dropdown -->
+            <ul id="autocomplete-list" class="autocomplete-dropdown hidden"></ul>
+            <!-- Recent Searches Section -->
+            <div id="recent-searches-container" class="recent-searches-row hidden">
+                <span class="recent-label">최근 검색:</span>
+                <div id="recent-searches-list" class="recent-badge-container"></div>
+            </div>
+        </section>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="spinner-container hidden">
+            <div class="spinner"></div>
+            <p class="loading-text">실시간 주가 데이터를 가져오고 상대 수익률을 계산하는 중...</p>
+        </div>
+
+        <!-- Dashboard Layout -->
+        <main id="main-dashboard" class="dashboard-layout hidden">
+            <!-- Stock Information Overview -->
+            <section class="stock-overview-card card">
+                <div class="stock-meta-header">
+                    <div>
+                        <h2 id="stock-name" class="stock-name-title">삼성전자</h2>
+                        <span id="stock-code-badge" class="stock-badge code-badge">005930</span>
+                    </div>
+                    <div class="badge-row">
+                        <span id="market-badge" class="stock-badge market-badge-kospi">코스피</span>
+                        <span id="sector-badge" class="stock-badge sector-badge">반도체와반도체장비</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Table and Chart Grid -->
+            <div class="dashboard-grid">
+                <!-- Relative Performance Table -->
+                <section class="performance-table-card card">
+                    <h3 class="card-title">상대 수익률 요약 표</h3>
+                    <div class="table-container">
+                        <table id="performance-table">
+                            <thead>
+                                <tr>
+                                    <th>기간</th>
+                                    <th>종목 수익률</th>
+                                    <th>시장 지수 대비 (%)</th>
+                                    <th>업종 평균 대비 (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="performance-tbody">
+                                <!-- Populated dynamically by script.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-footnote">
+                        <p>* <strong>%</strong>: 산술적 수익률 차이 (종목 수익률 - 지수/업종 평균 수익률)</p>
+                    </div>
+                </section>
+
+                <!-- Comparative Interactive Chart -->
+                <section class="chart-card card">
+                    <div class="chart-header-row">
+                        <h3 class="card-title">누적 수익률 흐름 비교 (1년)</h3>
+                        <div class="chart-period-selector">
+                            <button class="period-btn" data-months="1">1개월</button>
+                            <button class="period-btn" data-months="3">3개월</button>
+                            <button class="period-btn" data-months="6">6개월</button>
+                            <button class="period-btn active" data-months="12">1년</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="relative-chart"></canvas>
+                    </div>
+                    <p class="chart-footnote">* 각 자산의 누적 수익률 흐름을 직관적으로 보여주기 위해 선택 기간 시작 시점의 가치를 100(%)으로 지수화하여 비교한 차트입니다.</p>
+                </section>
+            </div>
+
+            <!-- Sector Peers Information Card -->
+            <section class="peers-card card">
+                <h3 class="card-title">업종 평균 산출 상세 정보</h3>
+                <p class="peers-desc">네이버 금융에서는 실시간 업종 인덱스의 과거 데이터를 제공하지 않으므로, 본 서비스는 해당 업종의 동종 시가총액 상위 주요 종목군(Peer Group)을 실시간 분석하여 <strong>'업종 평균 수익률 지수'</strong>를 정밀 산출합니다.</p>
+                <div class="peers-list-wrapper">
+                    <span class="peers-label">업종 분석 포함 종목:</span>
+                    <div id="peers-list" class="peers-badge-container">
+                        <!-- Populated by script.js -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Daily Candlestick and moving averages (MA) Card -->
+            <section class="candlestick-card card">
+                <div class="chart-header-row">
+                    <h3 class="card-title">일봉 캔들스틱 및 이동평균선 (MA)</h3>
+                    <div class="candlestick-controls">
+                        <label for="candle-days-input" class="control-label">조회 기간 (일):</label>
+                        <input type="number" id="candle-days-input" min="10" max="400" value="100" class="days-input" />
+                        <button id="update-candle-btn" class="btn-primary-sm">적용</button>
+                    </div>
+                </div>
+                <div class="candle-chart-wrapper">
+                    <div id="candle-chart"></div>
+                </div>
+                <p class="chart-footnote">* 빨간색 양봉은 가격 상승, 파란색 음봉은 가격 하락을 나타내며, 5일(금색), 10일(주황), 20일(분홍), 60일(녹색), 120일(보라), 240일(회색) 이동평균선이 함께 표시됩니다. (기본 조회: 최근 100일)</p>
+            </section>
+        </main>
+
+        <!-- Welcome View (Default screen) -->
+        <section id="welcome-view" class="welcome-card card">
+            <div class="welcome-icon">📈</div>
+            <h2>비교 분석할 종목을 검색하세요</h2>
+            <p>상단 검색창에 종목명을 입력하면 1주일, 1개월, 3개월, 6개월, 12개월의 시장 지수(KOSPI/KOSDAQ) 및 업종 평균 대비 상대 수익률을 비교 분석해 드립니다.</p>
+            <div class="popular-queries">
+                <span class="popular-label">인기 검색어 예시:</span>
+                <button class="popular-btn">삼전</button>
+                <button class="popular-btn">하닉</button>
+                <button class="popular-btn">카카오</button>
+                <button class="popular-btn">현대차</button>
+                <button class="popular-btn">에코프로</button>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>&copy; 2026 Antigravity Stock Relative Returns. All rights reserved. Powered by Naver Finance & Antigravity AI.</p>
+        </footer>
+    </div>
+
+    <!-- Custom JS -->
+    <script src="/static/script.js"></script>
+</body>
+</html>
