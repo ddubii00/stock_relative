@@ -749,15 +749,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     columnWidth: '80%'
                 }
             },
-            fill: {
-                colors: [
-                    function({ value, dataPointIndex, w }) {
-                        const item = rawOhlcData[dataPointIndex];
-                        if (!item) return '#808080';
-                        return item.close >= item.open ? '#dc2626' : '#2563eb';
-                    }
-                ]
-            },
+            colors: [
+                function({ value, seriesIndex, dataPointIndex, w }) {
+                    const item = rawOhlcData[dataPointIndex];
+                    if (!item) return '#808080';
+                    return item.close >= item.open ? '#dc2626' : '#2563eb';
+                }
+            ],
             xaxis: {
                 type: 'category',
                 min: Math.max(1, rawOhlcData.length - daysToDisplay + 1),
@@ -828,7 +826,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chart: {
                 id: 'macd-chart',
                 group: 'stock-charts',
-                height: 160,
+                height: 560,
                 type: 'line',
                 zoom: {
                     enabled: true,
@@ -863,19 +861,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 curve: 'smooth'
             },
             colors: [
-                '#0284c7', // MACD: Slate/Cyanish Blue
-                '#f59e0b', // Signal: Orange/Amber
-                '#b91c1c'  // Histogram baseline fallback
+                function({ value, seriesIndex, dataPointIndex, w }) {
+                    if (seriesIndex === 0) return '#0284c7';
+                    if (seriesIndex === 1) return '#f59e0b';
+                    return value >= 0 ? '#dc2626' : '#2563eb';
+                }
             ],
-            fill: {
-                colors: [
-                    '#0284c7',
-                    '#f59e0b',
-                    function({ value, dataPointIndex, w }) {
-                        return value >= 0 ? '#dc2626' : '#2563eb';
-                    }
-                ]
-            },
             xaxis: {
                 type: 'category',
                 min: Math.max(1, rawOhlcData.length - daysToDisplay + 1),
