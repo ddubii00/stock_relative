@@ -128,17 +128,19 @@
             <!-- Daily Candlestick and moving averages (MA) Card -->
             <section class="candlestick-card card">
                 <div class="chart-header-row">
-                    <h3 class="card-title">일봉 캔들스틱 및 이동평균선 (MA)</h3>
+                    <h3 class="card-title">일봉 캔들스틱, 거래량 및 MACD</h3>
                     <div class="candlestick-controls">
                         <label for="candle-days-input" class="control-label">조회 기간 (일):</label>
                         <input type="number" id="candle-days-input" min="10" max="400" value="100" class="days-input" />
                         <button id="update-candle-btn" class="btn-primary-sm">적용</button>
                     </div>
                 </div>
-                <div class="candle-chart-wrapper">
+                <div class="candle-chart-wrapper" style="display: flex; flex-direction: column; gap: 10px;">
                     <div id="candle-chart"></div>
+                    <div id="volume-chart" style="min-height: 140px;"></div>
+                    <div id="macd-chart" style="min-height: 160px;"></div>
                 </div>
-                <p class="chart-footnote">* 빨간색 양봉은 가격 상승, 파란색 음봉은 가격 하락을 나타내며, 5일(금색), 10일(주황), 20일(분홍), 60일(녹색), 120일(보라), 240일(회색) 이동평균선이 함께 표시됩니다. (기본 조회: 최근 100일)</p>
+                <p class="chart-footnote">* 빨간색 양봉/막대는 가격 상승/상승 마감, 파란색 음봉/막대는 가격 하락/하락 마감을 나타냅니다. 이동평균선과 거래량, MACD(12, 26, 9) 차트가 상하 연동되어 함께 드래그/스크롤됩니다.</p>
             </section>
         </main>
 

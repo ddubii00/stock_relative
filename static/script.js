@@ -36,6 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let benchmarkSymbol = '지수';
     let rawOhlcData = [];    // Raw OHLC data for daily candlestick
     let candleChartInstance = null; // ApexCharts instance holder
+    let volumeChartInstance = null; // ApexCharts volume instance holder
+    let macdChartInstance = null;   // ApexCharts MACD instance holder
     
     // Recent Searches Storage Engine
     function saveToRecentSearches(code, name) {
@@ -340,6 +342,81 @@ document.addEventListener('DOMContentLoaded', () => {
         return ma;
     }
 
+    // 9B-2. Helper to calculate MACD (12, 26, 9)
+    function calculateMACD(ohlcList) {
+        const closes = ohlcList.map(item => item.close);
+        
+        const getEMA = (prices, period) => {
+            const k = 2 / (period + 1);
+            const ema = [];
+            let currentEma = prices[0] || 0;
+            for (let i = 0; i < prices.length; i++) {
+                if (i === 0) {
+                    currentEma = prices[0] || 0;
+                } else {
+                    currentEma = prices[i] * k + currentEma * (1 - k);
+                }
+                ema.push(i < period - 1 ? null : parseFloat(currentEma.toFixed(4)));
+            }
+            return ema;
+        };
+        
+        const ema12 = getEMA(closes, 12);
+        const ema26 = getEMA(closes, 26);
+        
+        const macdLine = [];
+        for (let i = 0; i < closes.length; i++) {
+            if (ema12[i] === null || ema26[i] === null) {
+                macdLine.push(null);
+            } else {
+                macdLine.push(parseFloat((ema12[i] - ema26[i]).toFixed(4)));
+            }
+        }
+        
+        const signalLine = [];
+        const k9 = 2 / (9 + 1);
+        let currentSignal = null;
+        for (let i = 0; i < closes.length; i++) {
+            if (macdLine[i] === null) {
+                signalLine.push(null);
+            } else {
+                if (currentSignal === null) {
+                    currentSignal = macdLine[i];
+                    signalLine.push(null);
+                } else {
+                    currentSignal = macdLine[i] * k9 + currentSignal * (1 - k9);
+                    signalLine.push(parseFloat(currentSignal.toFixed(4)));
+                }
+            }
+        }
+        
+        // Nullify the first 8 valid MACD points of the Signal line to prevent starting bias
+        let validMacdCount = 0;
+        for (let i = 0; i < closes.length; i++) {
+            if (macdLine[i] !== null) {
+                validMacdCount++;
+                if (validMacdCount < 9) {
+                    signalLine[i] = null;
+                }
+            }
+        }
+        
+        const histogram = [];
+        for (let i = 0; i < closes.length; i++) {
+            if (macdLine[i] === null || signalLine[i] === null) {
+                histogram.push(null);
+            } else {
+                histogram.push(parseFloat((macdLine[i] - signalLine[i]).toFixed(4)));
+            }
+        }
+        
+        return {
+            macd: macdLine,
+            signal: signalLine,
+            histogram: histogram
+        };
+    }
+
     // 9C. Render Daily Candlestick and Moving Averages
     function renderCandleChart() {
         const chartDiv = document.getElementById('candle-chart');
@@ -388,9 +465,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const ma120SeriesData = ma120.map(item => ({ x: formatDate(item.x), y: item.y }));
         const ma240SeriesData = ma240.map(item => ({ x: formatDate(item.x), y: item.y }));
         
-        // Destroy past chart to prevent double-draw instances
+        // Destroy past charts to prevent double-draw instances
         if (candleChartInstance) {
             candleChartInstance.destroy();
+            candleChartInstance = null;
+        }
+        if (volumeChartInstance) {
+            volumeChartInstance.destroy();
+            volumeChartInstance = null;
+        }
+        if (macdChartInstance) {
+            macdChartInstance.destroy();
+            macdChartInstance = null;
         }
         
         // Detect crossovers and prepare annotations
@@ -440,12 +526,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const annotations = [];
         // Detect crosses on full datasets so annotations are visible when panning
         annotations.push(...detectCrosses(ma5, ma20, '5/20'));
-        // 5/60
         annotations.push(...detectCrosses(ma5, ma60, '5/60'));
-        // 20/60
         annotations.push(...detectCrosses(ma20, ma60, '20/60'));
-        // Add to ApexCharts options
-        const options = {
+
+        // Prepare Volume series data
+        const volumeSeriesData = rawOhlcData.map(item => ({
+            x: formatDate(item.date),
+            y: item.volume
+        }));
+
+        // Prepare MACD series data
+        const macdData = calculateMACD(rawOhlcData);
+        const macdSeriesData = macdData.macd.map((val, idx) => ({
+            x: formatDate(rawOhlcData[idx].date),
+            y: val
+        }));
+        const signalSeriesData = macdData.signal.map((val, idx) => ({
+            x: formatDate(rawOhlcData[idx].date),
+            y: val
+        }));
+        const histogramSeriesData = macdData.histogram.map((val, idx) => ({
+            x: formatDate(rawOhlcData[idx].date),
+            y: val
+        }));
+
+        // 1. Candlestick Chart Options
+        const candleOptions = {
             series: [
                 {
                     name: '일봉 캔들',
@@ -485,7 +591,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ],
             annotations: { points: annotations },
             chart: {
-                height: 420,
+                id: 'candle-chart',
+                group: 'stock-charts',
+                height: 320,
                 type: 'line',
                 zoom: {
                     enabled: true,
@@ -540,21 +648,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 min: Math.max(1, rawOhlcData.length - daysToDisplay + 1),
                 max: rawOhlcData.length,
                 labels: {
-                    style: {
-                        colors: '#64748b',
-                        fontSize: '11px',
-                        fontWeight: 500
-                    },
-                    rotate: -45,
-                    rotateAlways: false
+                    show: false // Hide X-axis labels to avoid duplication
                 },
-                tickAmount: Math.min(10, daysToDisplay)
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+                tooltip: { enabled: false }
             },
             yaxis: {
-                tooltip: {
-                    enabled: true
-                },
                 labels: {
+                    minWidth: 80,
                     formatter: function(val) {
                         const isUS = !/^[0-9]+$/.test(stockCodeBadge.textContent);
                         return isUS ? '$' + val.toFixed(2) : val.toLocaleString() + '원';
@@ -586,7 +688,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     html += `<span>저가:</span><span style="font-weight:600; text-align:right; color:#2563eb;">${formatPrice(low)}</span>`;
                     html += `<span>종가:</span><span style="font-weight:600; text-align:right; color:#1e293b;">${formatPrice(close)}</span>`;
                     
-                    // Add MAs values inside the customized tooltip
                     for (let s = 1; s < w.config.series.length; s++) {
                         const val = w.config.series[s].data[dataPointIndex].y;
                         if (val !== null) {
@@ -605,9 +706,247 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         };
-        
-        candleChartInstance = new ApexCharts(chartDiv, options);
+
+        // 2. Volume Chart Options
+        const volumeOptions = {
+            series: [
+                {
+                    name: '거래량',
+                    data: volumeSeriesData
+                }
+            ],
+            chart: {
+                id: 'volume-chart',
+                group: 'stock-charts',
+                height: 140,
+                type: 'bar',
+                zoom: {
+                    enabled: true,
+                    type: 'x',
+                    allowMouseWheelZoom: false
+                },
+                toolbar: {
+                    show: false,
+                    autoSelected: 'pan',
+                    tools: {
+                        download: false,
+                        selection: false,
+                        zoom: false,
+                        zoomin: false,
+                        zoomout: false,
+                        pan: true,
+                        reset: false
+                    }
+                },
+                animations: {
+                    enabled: false
+                },
+                fontFamily: 'Outfit, Inter, sans-serif'
+            },
+            plotOptions: {
+                bar: {
+                    columnWidth: '80%'
+                }
+            },
+            fill: {
+                colors: [
+                    function({ value, dataPointIndex, w }) {
+                        const item = rawOhlcData[dataPointIndex];
+                        if (!item) return '#808080';
+                        return item.close >= item.open ? '#dc2626' : '#2563eb';
+                    }
+                ]
+            },
+            xaxis: {
+                type: 'category',
+                min: Math.max(1, rawOhlcData.length - daysToDisplay + 1),
+                max: rawOhlcData.length,
+                labels: {
+                    show: false // Hide X-axis labels to avoid duplication
+                },
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+                tooltip: { enabled: false }
+            },
+            yaxis: {
+                labels: {
+                    minWidth: 80,
+                    formatter: function(val) {
+                        if (val >= 1000000) {
+                            return (val / 1000000).toFixed(1) + 'M';
+                        } else if (val >= 1000) {
+                            return (val / 1000).toFixed(0) + 'K';
+                        }
+                        return val.toLocaleString();
+                    },
+                    style: {
+                        colors: '#64748b',
+                        fontSize: '11px',
+                        fontWeight: 500
+                    }
+                }
+            },
+            tooltip: {
+                shared: true,
+                custom: function({ seriesIndex, dataPointIndex, w }) {
+                    const item = rawOhlcData[dataPointIndex];
+                    if (!item) return '';
+                    const date = formatDate(item.date);
+                    let html = `<div class="apexcharts-custom-tooltip" style="padding: 10px; font-family: 'Outfit'; font-size: 12px; background: rgba(255,255,255,0.95); border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">`;
+                    html += `<div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">📅 날짜: ${date}</div>`;
+                    html += `<div style="color: #475569;">거래량: <span style="font-weight:600; color:#1e293b;">${item.volume.toLocaleString()}주</span></div>`;
+                    html += `</div>`;
+                    return html;
+                }
+            },
+            legend: {
+                show: false
+            }
+        };
+
+        // 3. MACD Chart Options
+        const macdOptions = {
+            series: [
+                {
+                    name: 'MACD',
+                    type: 'line',
+                    data: macdSeriesData
+                },
+                {
+                    name: 'Signal',
+                    type: 'line',
+                    data: signalSeriesData
+                },
+                {
+                    name: 'Histogram',
+                    type: 'bar',
+                    data: histogramSeriesData
+                }
+            ],
+            chart: {
+                id: 'macd-chart',
+                group: 'stock-charts',
+                height: 160,
+                type: 'line',
+                zoom: {
+                    enabled: true,
+                    type: 'x',
+                    allowMouseWheelZoom: false
+                },
+                toolbar: {
+                    show: false,
+                    autoSelected: 'pan',
+                    tools: {
+                        download: false,
+                        selection: false,
+                        zoom: false,
+                        zoomin: false,
+                        zoomout: false,
+                        pan: true,
+                        reset: false
+                    }
+                },
+                animations: {
+                    enabled: false
+                },
+                fontFamily: 'Outfit, Inter, sans-serif'
+            },
+            plotOptions: {
+                bar: {
+                    columnWidth: '80%'
+                }
+            },
+            stroke: {
+                width: [1.5, 1.5, 0],
+                curve: 'smooth'
+            },
+            colors: [
+                '#0284c7', // MACD: Slate/Cyanish Blue
+                '#f59e0b', // Signal: Orange/Amber
+                '#b91c1c'  // Histogram baseline fallback
+            ],
+            fill: {
+                colors: [
+                    '#0284c7',
+                    '#f59e0b',
+                    function({ value, dataPointIndex, w }) {
+                        return value >= 0 ? '#dc2626' : '#2563eb';
+                    }
+                ]
+            },
+            xaxis: {
+                type: 'category',
+                min: Math.max(1, rawOhlcData.length - daysToDisplay + 1),
+                max: rawOhlcData.length,
+                labels: {
+                    style: {
+                        colors: '#64748b',
+                        fontSize: '11px',
+                        fontWeight: 500
+                    },
+                    rotate: -45,
+                    rotateAlways: false
+                },
+                tickAmount: Math.min(10, daysToDisplay)
+            },
+            yaxis: {
+                labels: {
+                    minWidth: 80,
+                    formatter: function(val) {
+                        return val !== null ? val.toFixed(2) : '';
+                    },
+                    style: {
+                        colors: '#64748b',
+                        fontSize: '11px',
+                        fontWeight: 500
+                    }
+                }
+            },
+            tooltip: {
+                shared: true,
+                custom: function({ seriesIndex, dataPointIndex, w }) {
+                    const item = rawOhlcData[dataPointIndex];
+                    if (!item) return '';
+                    const date = formatDate(item.date);
+                    const macdVal = macdSeriesData[dataPointIndex].y;
+                    const signalVal = signalSeriesData[dataPointIndex].y;
+                    const histVal = histogramSeriesData[dataPointIndex].y;
+                    
+                    let html = `<div class="apexcharts-custom-tooltip" style="padding: 10px; font-family: 'Outfit'; font-size: 12px; background: rgba(255,255,255,0.95); border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">`;
+                    html += `<div style="font-weight: 700; color: #1e293b; margin-bottom: 6px;">📅 날짜: ${date}</div>`;
+                    html += `<div style="display: grid; grid-template-columns: auto auto; gap: 4px 15px; color: #475569;">`;
+                    if (macdVal !== null) {
+                        html += `<span>MACD:</span><span style="font-weight:600; text-align:right; color:#0284c7;">${macdVal.toFixed(2)}</span>`;
+                    }
+                    if (signalVal !== null) {
+                        html += `<span>Signal:</span><span style="font-weight:600; text-align:right; color:#f59e0b;">${signalVal.toFixed(2)}</span>`;
+                    }
+                    if (histVal !== null) {
+                        const histColor = histVal >= 0 ? '#dc2626' : '#2563eb';
+                        html += `<span>Histogram:</span><span style="font-weight:600; text-align:right; color:${histColor};">${histVal.toFixed(2)}</span>`;
+                    }
+                    html += `</div></div>`;
+                    return html;
+                }
+            },
+            legend: {
+                position: 'top',
+                horizontalAlign: 'center',
+                labels: {
+                    colors: '#475569'
+                }
+            }
+        };
+
+        // Render All Synchronized Charts
+        candleChartInstance = new ApexCharts(document.getElementById('candle-chart'), candleOptions);
         candleChartInstance.render();
+
+        volumeChartInstance = new ApexCharts(document.getElementById('volume-chart'), volumeOptions);
+        volumeChartInstance.render();
+
+        macdChartInstance = new ApexCharts(document.getElementById('macd-chart'), macdOptions);
+        macdChartInstance.render();
     }
 
     // 10. Render Peer Badges
