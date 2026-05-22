@@ -417,8 +417,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const labelText = `${name} ${isGolden ? 'golden' : 'dead'}`;
                     const labelColor = isGolden ? '#d97706' : '#7c3aed';
                     const labelBg = isGolden ? '#fef3c7' : '#ede9fe';
-                    // offset: golden → 차트 아래로(양수 = 아래), dead → 차트 위로(음수 = 위)
-                    const offsetY = isGolden ? 30 : -25;
                     points.push({
                         x: formatDate(short[i].x),
                         y: curShort,
@@ -427,12 +425,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             fillColor: labelColor,
                             strokeColor: labelColor,
                             strokeWidth: 1,
-                            shape: 'circle',
-                            offsetY: offsetY
+                            shape: 'circle'
                         },
                         label: {
                             text: labelText,
-                            offsetY: offsetY,
+                            offsetY: isGolden ? 25 : -25,
                             borderColor: labelColor,
                             borderWidth: 1,
                             borderRadius: 4,

@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+import os
 
 app = Flask(__name__)
 
@@ -31,7 +32,9 @@ NICKNAMES = {
 
 def load_stocks_db():
     try:
-        with open('stocks.json', 'r', encoding='utf-8') as f:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(base_dir, 'stocks.json')
+        with open(db_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
         print(f"Error loading stocks.json: {e}")
